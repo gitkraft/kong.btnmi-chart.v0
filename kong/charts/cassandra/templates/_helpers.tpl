@@ -1,3 +1,8 @@
+{{/*
+Copyright VMware, Inc.
+SPDX-License-Identifier: APACHE-2.0
+*/}}
+
 {{/* vim: set filetype=mustache: */}}
 
 {{/*
@@ -45,7 +50,7 @@ Return the list of Cassandra seed nodes
 {{- define "cassandra.seeds" -}}
 {{- $seeds := list }}
 {{- $fullname := include "common.names.fullname" .  }}
-{{- $releaseNamespace := .Release.Namespace }}
+{{- $releaseNamespace := include "common.names.namespace" . }}
 {{- $clusterDomain := .Values.clusterDomain }}
 {{- $seedCount := .Values.cluster.seedCount | int }}
 {{- range $e, $i := until $seedCount }}
@@ -198,7 +203,7 @@ otherwise it generates a random value.
     {{- if .Values.dbUser.password }}
         {{- .Values.dbUser.password }}
     {{- else if (not .Values.dbUser.forcePassword) }}
-        {{- include "getValueFromSecret" (dict "Namespace" .Release.Namespace "Name" (include "common.names.fullname" .) "Length" 10 "Key" "cassandra-password")  -}}
+        {{- include "getValueFromSecret" (dict "Namespace" (include "common.names.namespace" .) "Name" (include "common.names.fullname" .) "Length" 10 "Key" "cassandra-password")  -}}
     {{- else }}
         {{ required "A Cassandra Password is required!" .Values.dbUser.password }}
     {{- end }}
@@ -208,7 +213,7 @@ otherwise it generates a random value.
     {{- if .Values.tls.keystorePassword }}
         {{- .Values.tls.keystorePassword }}
     {{- else }}
-        {{- include "getValueFromSecret" (dict "Namespace" .Release.Namespace "Name" (printf "%s-%s" (include "common.names.fullname" .) "tls-pass" | trunc 63 | trimSuffix "-") "Length" 10 "Key" "keystore-password")  -}}
+        {{- include "getValueFromSecret" (dict "Namespace" (include "common.names.namespace" .) "Name" (printf "%s-%s" (include "common.names.fullname" .) "tls-pass" | trunc 63 | trimSuffix "-") "Length" 10 "Key" "keystore-password")  -}}
     {{- end }}
 {{- end -}}
 
@@ -216,42 +221,9 @@ otherwise it generates a random value.
     {{- if .Values.tls.truststorePassword }}
         {{- .Values.tls.truststorePassword }}
     {{- else }}
-        {{- include "getValueFromSecret" (dict "Namespace" .Release.Namespace "Name" (printf "%s-%s" (include "common.names.fullname" .) "tls-pass" | trunc 63 | trimSuffix "-") "Length" 10 "Key" "truststore-password")  -}}
+        {{- include "getValueFromSecret" (dict "Namespace" (include "common.names.namespace" .) "Name" (printf "%s-%s" (include "common.names.fullname" .) "tls-pass" | trunc 63 | trimSuffix "-") "Length" 10 "Key" "truststore-password")  -}}
     {{- end }}
 {{- end -}}
-
-
-{{/*
-Returns the available TLS Cert in an existing secret (if it exists),
-otherwise it generates a new one.
-*/}}
-{{- define "cassandra.getTlsCertStrFromSecret" }}
-    {{- $len := (default 365 .Length) | int -}}
-    {{- $ca := "" -}}
-    {{- $crt := "" -}}
-    {{- $key := "" -}}
-    {{- $tlsCert := (lookup "v1" "Secret" .Release.Namespace (printf "%s-%s" (include "common.names.fullname" .) "crt" | trunc 63 | trimSuffix "-")).data -}}
-
-    {{- if $tlsCert }}
-        {{- $ca = (get $tlsCert "ca.crt" | b64dec) -}}
-        {{- $crt = (get $tlsCert "tls.crt" | b64dec) -}}
-        {{- $key = (get $tlsCert "tls.key" | b64dec) -}}
-    {{- else -}}
-        {{- $caFull := genCA "cassandra-ca" 365 }}
-        {{- $fullname := include "common.names.fullname" . }}
-        {{- $releaseNamespace := .Release.Namespace }}
-        {{- $clusterDomain := .Values.clusterDomain }}
-        {{- $serviceName := include "common.names.fullname" . }}
-        {{- $headlessServiceName := printf "%s-headless" (include "common.names.fullname" .) | trunc 63 | trimSuffix "-" }}
-        {{- $altNames := list (printf "*.%s.%s.svc.%s" $serviceName $releaseNamespace $clusterDomain) (printf "%s.%s.svc.%s" $serviceName $releaseNamespace $clusterDomain) (printf "*.%s.%s.svc.%s" $headlessServiceName $releaseNamespace $clusterDomain) (printf "%s.%s.svc.%s" $headlessServiceName $releaseNamespace $clusterDomain) "localhost" "127.0.0.1" $fullname }}
-        {{- $cert := genSignedCert $fullname nil $altNames 365 $caFull }}
-        {{- $ca = $caFull.Cert -}}
-        {{- $crt = $cert.Cert -}}
-        {{- $key = $cert.Key -}}
-    {{- end -}}
-
-    {{- printf "%s###%s###%s" $ca $crt $key -}}
-{{- end }}
 
 {{/*
 Get the metrics config map name.
