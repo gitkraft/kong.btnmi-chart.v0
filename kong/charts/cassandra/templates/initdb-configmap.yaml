@@ -3,22 +3,17 @@ Copyright Broadcom, Inc. All Rights Reserved.
 SPDX-License-Identifier: APACHE-2.0
 */}}
 
-{{- if .Values.rbac.create }}
-kind: RoleBinding
-apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
+{{- if and .Values.initDB (not .Values.initDBConfigMap) }}
+apiVersion: v1
+kind: ConfigMap
 metadata:
-  name: {{ include "common.names.fullname" . }}
+  name: {{ printf "%s-init-scripts" (include "common.names.fullname" .) }}
   namespace: {{ .Release.Namespace | quote }}
   labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/part-of: cassandra
   {{- if .Values.commonAnnotations }}
   annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
   {{- end }}
-roleRef:
-  kind: Role
-  name: {{ include "common.names.fullname" . }}
-  apiGroup: rbac.authorization.k8s.io
-subjects:
-  - kind: ServiceAccount
-    name: {{ include "postgresql.v1.serviceAccountName" . }}
-    namespace: {{ .Release.Namespace | quote }}
-{{- end }}
+data:
+{{- include "common.tplvalues.render" (dict "value" .Values.initDB "context" .) | nindent 2 }}
+{{ end }}
